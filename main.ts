@@ -11,8 +11,8 @@ class Point{
 }
 
 //ロータリー素子
-type RoteryState = "horizontal" | "vertical";
-type RoteryDirection = "east" | "south" | "west" | "north";
+type RotaryState = "horizontal" | "vertical";
+type RotaryDirection = "east" | "south" | "west" | "north";
 
 interface DirectionMap<T>{
     east: T;
@@ -55,7 +55,7 @@ abstract class BoxElement extends CircuitElement{
             north: null
         };
     }
-    public getPoint(dir:RoteryDirection, inout:"in" | "out"):Point{
+    public getPoint(dir:RotaryDirection, inout:"in" | "out"):Point{
         //ポイントを教える
         const {size, center:{x, y}} = this;
         const hsize = size/2, qsize = size/4;
@@ -72,10 +72,10 @@ abstract class BoxElement extends CircuitElement{
         return new Point(x, y);
     }
     //接続情報
-    public setInput(d:RoteryDirection, c:CircuitElement):void{
+    public setInput(d:RotaryDirection, c:CircuitElement):void{
         this.input[d] = c;
     }
-    public setOutput(d:RoteryDirection, c:CircuitElement):void{
+    public setOutput(d:RotaryDirection, c:CircuitElement):void{
         this.output[d] = c;
     }
 
@@ -89,26 +89,26 @@ abstract class BoxElement extends CircuitElement{
         return null;
     }
     //これはどの方向から？
-    public getInputDir(path:Path):RoteryDirection{
+    public getInputDir(path:Path):RotaryDirection{
         for(let d of ["east","south","west","north"]){
             if(this.input[d]===path){
-                return d as RoteryDirection;
+                return d as RotaryDirection;
             }
         }
         return null;
     }
     //この方向のpathは？
-    public getOutputPath(dir:RoteryDirection):Path{
+    public getOutputPath(dir:RotaryDirection):Path{
         return this.output[dir];
     }
 }
 
 //ロータリー素子
-class RoteryElement extends BoxElement{
+class RotaryElement extends BoxElement{
     //state
-    private state : RoteryState = "vertical";
+    private state : RotaryState = "vertical";
 
-    public handleToken(d:RoteryDirection):RoteryDirection{
+    public handleToken(d:RotaryDirection):RotaryDirection{
         if(this.state==="horizontal"){
             //横（東西）
             if(d==="east"){
@@ -175,10 +175,10 @@ class RoteryElement extends BoxElement{
         ctx.stroke();
     }
 
-    public getState():RoteryState{
+    public getState():RotaryState{
         return this.state;
     }
-    public setState(state:RoteryState):void{
+    public setState(state:RotaryState):void{
         this.state = state;
     }
 
@@ -398,7 +398,7 @@ class CircuitRenderer{
                 //まだpathが続く？
                 this.ridePath(o, 0);
                 return;
-            }else if(o instanceof RoteryElement){
+            }else if(o instanceof RotaryElement){
                 //方向を取得
                 const d = o.getInputDir(path);
                 if(d!=null){
@@ -456,7 +456,7 @@ function buildCircuit(code:string):{circuit: Circuit; inputs: Array<string>; ren
         const r1 = l.match(/^(\w+):(\d+),(\d+)(?:,(\w))?$/);
         if(r1){
             //ロータリー素子を追加
-            const ro = new RoteryElement(ROTERY_SIZE, new Point(Number(r1[2]), Number(r1[3])));
+            const ro = new RotaryElement(ROTERY_SIZE, new Point(Number(r1[2]), Number(r1[3])));
             if(r1[4]==="h" || r1[4]==="H"){
                 ro.setState("horizontal");
             }
@@ -658,7 +658,7 @@ loadCircuit();
 
 
 //1moji kar
-function charDir(char:string):RoteryDirection{
+function charDir(char:string):RotaryDirection{
     switch(char){
         case "e":
         case "E":

@@ -93,14 +93,14 @@ var BoxElement = (function (_super) {
     return BoxElement;
 }(CircuitElement));
 //ロータリー素子
-var RoteryElement = (function (_super) {
-    __extends(RoteryElement, _super);
-    function RoteryElement() {
+var RotaryElement = (function (_super) {
+    __extends(RotaryElement, _super);
+    function RotaryElement() {
         _super.apply(this, arguments);
         //state
         this.state = "vertical";
     }
-    RoteryElement.prototype.handleToken = function (d) {
+    RotaryElement.prototype.handleToken = function (d) {
         if (this.state === "horizontal") {
             //横（東西）
             if (d === "east") {
@@ -142,7 +142,7 @@ var RoteryElement = (function (_super) {
         }
     };
     //rendering
-    RoteryElement.prototype.render = function (ctx) {
+    RotaryElement.prototype.render = function (ctx) {
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#000000";
         ctx.fillStyle = "#000000";
@@ -165,13 +165,13 @@ var RoteryElement = (function (_super) {
         }
         ctx.stroke();
     };
-    RoteryElement.prototype.getState = function () {
+    RotaryElement.prototype.getState = function () {
         return this.state;
     };
-    RoteryElement.prototype.setState = function (state) {
+    RotaryElement.prototype.setState = function (state) {
         this.state = state;
     };
-    return RoteryElement;
+    return RotaryElement;
 }(BoxElement));
 //入出力
 var IO = (function (_super) {
@@ -379,7 +379,7 @@ var CircuitRenderer = (function () {
                 this.ridePath(o, 0);
                 return;
             }
-            else if (o instanceof RoteryElement) {
+            else if (o instanceof RotaryElement) {
                 //方向を取得
                 var d = o.getInputDir(path);
                 if (d != null) {
@@ -434,7 +434,7 @@ function buildCircuit(code) {
         var r1 = l.match(/^(\w+):(\d+),(\d+)(?:,(\w))?$/);
         if (r1) {
             //ロータリー素子を追加
-            var ro = new RoteryElement(ROTERY_SIZE, new Point(Number(r1[2]), Number(r1[3])));
+            var ro = new RotaryElement(ROTERY_SIZE, new Point(Number(r1[2]), Number(r1[3])));
             if (r1[4] === "h" || r1[4] === "H") {
                 ro.setState("horizontal");
             }
