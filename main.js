@@ -17,18 +17,6 @@ var Point = (function () {
     };
     return Point;
 }());
-function dir(d) {
-    var result = {
-        east: false,
-        south: false,
-        west: false,
-        north: false
-    };
-    if (d !== "none") {
-        result[d] = true;
-    }
-    return result;
-}
 //回路の構成要素
 var CircuitElement = (function () {
     function CircuitElement() {
@@ -42,6 +30,18 @@ var BoxElement = (function (_super) {
         _super.call(this);
         this.size = size;
         this.center = center;
+        this.input = {
+            east: null,
+            south: null,
+            west: null,
+            north: null
+        };
+        this.output = {
+            east: null,
+            south: null,
+            west: null,
+            north: null
+        };
     }
     BoxElement.prototype.getPoint = function (dir, inout) {
         //ポイントを教える
@@ -59,77 +59,86 @@ var BoxElement = (function (_super) {
         }
         return new Point(x, y);
     };
+    //接続情報
+    BoxElement.prototype.setInput = function (d, c) {
+        this.input[d] = c;
+    };
+    BoxElement.prototype.setOutput = function (d, c) {
+        this.output[d] = c;
+    };
+    //何かあれする
+    BoxElement.prototype.getSomeOutput = function () {
+        for (var _i = 0, _a = ["east", "south", "west", "north"]; _i < _a.length; _i++) {
+            var d = _a[_i];
+            if (this.output[d] != null) {
+                return this.output[d];
+            }
+        }
+        return null;
+    };
+    //これはどの方向から？
+    BoxElement.prototype.getInputDir = function (path) {
+        for (var _i = 0, _a = ["east", "south", "west", "north"]; _i < _a.length; _i++) {
+            var d = _a[_i];
+            if (this.input[d] === path) {
+                return d;
+            }
+        }
+        return null;
+    };
+    //この方向のpathは？
+    BoxElement.prototype.getOutputPath = function (dir) {
+        return this.output[dir];
+    };
     return BoxElement;
 }(CircuitElement));
 //ロータリー素子
 var RoteryElement = (function (_super) {
     __extends(RoteryElement, _super);
-    function RoteryElement(size, center) {
-        _super.call(this, size, center);
+    function RoteryElement() {
+        _super.apply(this, arguments);
         //state
         this.state = "vertical";
-        this.input = {
-            east: null,
-            south: null,
-            west: null,
-            north: null
-        };
-        this.output = {
-            east: null,
-            south: null,
-            west: null,
-            north: null
-        };
     }
     RoteryElement.prototype.handleToken = function (d) {
-        this.validate(d);
-        var east = d.east, south = d.south, west = d.west, north = d.north;
         if (this.state === "horizontal") {
             //横（東西）
-            if (east) {
+            if (d === "east") {
                 //東から西へ
-                return dir("west");
+                return "west";
             }
-            if (west) {
-                return dir("east");
+            if (d === "west") {
+                return "east";
             }
-            if (north) {
+            if (d === "north") {
                 //北から
                 this.state = "vertical";
-                return dir("west");
+                return "west";
             }
-            if (south) {
+            if (d === "south") {
                 //南から
                 this.state = "vertical";
-                return dir("east");
+                return "east";
             }
-            return dir("none");
+            return null;
         }
         else {
             //縦（南北）
-            if (south) {
-                return dir("north");
+            if (d === "south") {
+                return "north";
             }
-            if (north) {
-                return dir("south");
+            if (d === "north") {
+                return "south";
             }
-            if (east) {
+            if (d === "east") {
                 this.state = "horizontal";
-                return dir("north");
+                return "north";
             }
-            if (west) {
+            if (d === "west") {
                 this.state = "horizontal";
-                return dir("south");
+                return "south";
             }
-            return dir("none");
-        }
-    };
-    RoteryElement.prototype.validate = function (d) {
-        //複数入力されていないか調べる
-        var east = d.east, south = d.south, west = d.west, north = d.north;
-        var trues = [east, south, west, north].filter(function (x) { return x; });
-        if (trues.length > 1) {
-            throw new Error("RoteryData Validation Error");
+            return null;
         }
     };
     //rendering
@@ -161,16 +170,6 @@ var RoteryElement = (function (_super) {
     };
     RoteryElement.prototype.setState = function (state) {
         this.state = state;
-    };
-    RoteryElement.prototype.setInput = function (input) {
-        for (var d in ["east", "south", "west", "north"]) {
-            this.input[d] = input[d];
-        }
-    };
-    RoteryElement.prototype.setOutput = function (output) {
-        for (var d in ["east", "south", "west", "north"]) {
-            this.output[d] = output[d];
-        }
     };
     return RoteryElement;
 }(BoxElement));
@@ -216,6 +215,7 @@ var Path = (function (_super) {
         _super.apply(this, arguments);
         //位置情報
         this.path = [];
+        this.length = 0;
     }
     //rendering
     Path.prototype.render = function (ctx) {
@@ -253,28 +253,27 @@ var Path = (function (_super) {
             ctx.restore();
         }
     };
-    Path.prototype.setInput = function (input) {
+    Path.prototype.setConnection = function (input, output) {
         this.input = input;
-    };
-    Path.prototype.setOutput = function (output) {
         this.output = output;
     };
     Path.prototype.setPath = function (path) {
         this.path = path.slice();
     };
+    Path.prototype.getOutput = function () {
+        return this.output;
+    };
     return Path;
 }(CircuitElement));
 //回路
 var Circuit = (function () {
-    function Circuit(c) {
+    function Circuit() {
         this.elements = [];
-        this.canvas = c;
     }
     Circuit.prototype.add = function (e) {
         this.elements.push(e);
     };
-    Circuit.prototype.render = function () {
-        var canvas = this.canvas;
+    Circuit.prototype.render = function (canvas) {
         var ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         for (var _i = 0, _a = this.elements; _i < _a.length; _i++) {
@@ -282,19 +281,152 @@ var Circuit = (function () {
             e.render(ctx);
         }
     };
+    //構成要素を得たい
+    Circuit.prototype.getIO = function (name) {
+        for (var _i = 0, _a = this.elements; _i < _a.length; _i++) {
+            var e = _a[_i];
+            if (e instanceof IO && e.name === name) {
+                return e;
+            }
+        }
+        return null;
+    };
     return Circuit;
 }());
-//回路を構成する文字列
-var code = "\n//\u5165\u51FA\u529B\nIN \"a1\": 40, 130\nIN \"a2\": 40, 260\nOUT \"b1\": 760, 130\nOUT \"b2\": 760, 260\n\nq1: 180, 390, H\nq2: 400, 390\nq3: 620, 390\n\na11: 180, 130\na12: 400, 130\na13: 620, 130\na21: 180, 260\na22: 400, 260\na23: 620, 260\n\n//\u7DDA\nq1.S -> q1.S: 450 ->\nq2.S -> q2.S: 450 ->\nq3.S -> q3.S: 450 ->\n\na11.S -> a21.N:\na12.S -> a22.N:\na13.S -> a23.N:\n\na21.N -> a11.S:\na22.N -> a12.S:\na23.N -> a13.S:\n\na21.S -> q1.N:\na22.S -> q2.N:\na23.S -> q3.N:\n\nq1.N -> a21.S:\nq2.N -> a22.S:\nq3.N -> a23.S:\n\nq1.W -> a11.N: 130 -> 80 ->\nq2.W -> a12.N: 350 -> 80 ->\nq3.W -> a13.N: 570 -> 80 ->\n\na11.N -> q1.E: 80 -> 230 ->\na12.N -> q2.E: 80 -> 450 ->\na13.N -> q3.E: 80 -> 670 ->\n\na11.E -> a12.W:\na12.E -> a13.W:\na21.E -> a22.W:\na22.E -> a23.W:\n\na11.W -> a12.E: 110 -> 50 -> 470 ->\n\na12.W -> a22.E: 300 -> 200 -> 500 -> \n\na13.W -> a21.E: 550 -> 180 -> 260 ->\n\na21.W -> a23.E: 110 -> 320 -> 700 ->\n\na22.W -> a11.E: 280 -> \n\na23.W -> a13.E: 540 -> 200 -> 700 ->\n\n\"a1\".E -> a11.W:\n\n\"a2\".E -> a21.W:\n\na13.E -> \"b1\".W:\na23.E -> \"b2\".W:\n";
-//回路を作る
-var circuit = buildCircuit(code);
-circuit.render();
+//回路をレンダリングするやつ
+var CircuitRenderer = (function () {
+    function CircuitRenderer(circuit) {
+        this.circuit = circuit;
+        //現在
+        this.running = false;
+        this.speed = 300;
+        this.ctx = document.getElementById('light').getContext('2d');
+    }
+    CircuitRenderer.prototype.renderCircuit = function () {
+        var canvas = document.getElementById('main');
+        this.circuit.render(canvas);
+    };
+    //入力
+    CircuitRenderer.prototype.input = function (name) {
+        //開始boxを探す
+        var input = this.circuit.getIO(name);
+        if (!input)
+            return;
+        //これに接続するPathを探す
+        var path = input.getSomeOutput();
+        this.ridePath(path, 0);
+    };
+    CircuitRenderer.prototype.setSpeed = function (speed) {
+        this.speed = speed;
+    };
+    CircuitRenderer.prototype.stop = function () {
+        if (this.running) {
+            window.cancelAnimationFrame(this.requestID);
+            this.running = false;
+            this.requestID = null;
+        }
+    };
+    CircuitRenderer.prototype.start = function () {
+        var _this = this;
+        if (this.running) {
+            this.stop();
+        }
+        this.running = true;
+        var handler = function () {
+            _this.frame();
+            if (_this.running === true) {
+                _this.requestID = window.requestAnimationFrame(handler);
+            }
+        };
+        this.lastTime = Date.now();
+        handler();
+    };
+    CircuitRenderer.prototype.frame = function () {
+        //描画
+        var _a = this, ctx = _a.ctx, path = _a.path, segStart = _a.segStart, segDir = _a.segDir, position = _a.position, lastTime = _a.lastTime;
+        var now = Date.now();
+        var el = now - lastTime; //経過時間
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillStyle = "#ff0000";
+        if (path) {
+            //円を描画
+            var x = segStart.x + Math.cos(segDir) * position;
+            var y = segStart.y + Math.sin(segDir) * position;
+            ctx.beginPath();
+            ctx.arc(x, y, 7, 0, Math.PI * 2, false);
+            ctx.fill();
+            //進行
+            var pos = this.position += this.speed * el / 1000;
+            if (pos >= this.segLength) {
+                this.nextSeg();
+            }
+        }
+        this.lastTime = now;
+    };
+    //segが終わった
+    CircuitRenderer.prototype.nextSeg = function () {
+        var path = this.path;
+        //debugger;
+        if (this.segnum < path.path.length - 2) {
+            this.ridePath(path, this.segnum + 1);
+            return;
+        }
+        else {
+            //このpathはもう終わりだから次のpathに
+            var o = path.getOutput();
+            if (o instanceof Path) {
+                //まだpathが続く？
+                this.ridePath(o, 0);
+                return;
+            }
+            else if (o instanceof RoteryElement) {
+                //方向を取得
+                var d = o.getInputDir(path);
+                if (d != null) {
+                    //oに突っ込む
+                    var d2 = o.handleToken(d);
+                    //変わったかも
+                    this.renderCircuit();
+                    var path2 = o.getOutputPath(d2);
+                    if (path2 != null) {
+                        //次のpathがみつかった
+                        this.ridePath(path2, 0);
+                        return;
+                    }
+                }
+            }
+        }
+        //だめだったら終了
+        this.stop();
+    };
+    //このpathに乗る
+    CircuitRenderer.prototype.ridePath = function (path, segnum) {
+        this.path = path;
+        this.segnum = segnum;
+        var ps = path.path;
+        var segS = ps[segnum];
+        var segE = ps[segnum + 1];
+        if (segS == null || segE == null) {
+            throw new Error("???");
+        }
+        var sx = segS.x, sy = segS.y;
+        var ex = segE.x, ey = segE.y;
+        //このsegの距離を計算
+        this.segLength = Math.sqrt(Math.pow(sx - ex, 2) + Math.pow(sy - ey, 2));
+        //角度も計算
+        this.segStart = segS;
+        this.segDir = Math.atan2(ey - sy, ex - sx);
+        this.position = 0;
+    };
+    return CircuitRenderer;
+}());
 //文字列から回路構成
 function buildCircuit(code) {
     var ROTERY_SIZE = 40;
-    var circuit = new Circuit(document.getElementById('main'));
+    var circuit = new Circuit();
     var lines = code.split(/(?:\r\n|\r|\n)+/g).filter(function (x) { return !!x; });
     var table = {};
+    var inputs = [];
     for (var _i = 0, lines_1 = lines; _i < lines_1.length; _i++) {
         var line = lines_1[_i];
         var l = line.replace(/\s+/g, "");
@@ -400,21 +532,40 @@ function buildCircuit(code) {
             }
             //終点も追加
             path.push(new Point(e_p.x, e_p.y));
-            console.log(path.slice());
             p.setPath(path);
             circuit.add(p);
+            //接続をあれする
+            p.setConnection(start, end);
+            start.setOutput(start_d, p);
+            end.setInput(end_d, p);
         }
         var r3 = l.match(/^(IN|OUT)"(\w+)":(\d+),(\d+)$/i);
         if (r3) {
             //入出力
             var po = new Point(Number(r3[3]), Number(r3[4]));
-            var ro = /^in$/i.test(r3[1]) ? new InputSource(ROTERY_SIZE, po, r3[2]) : new OutputDestination(ROTERY_SIZE, po, r3[2]);
+            var isin = /^in$/i.test(r3[1]);
+            var name_1 = r3[2];
+            var ro = isin ? new InputSource(ROTERY_SIZE, po, name_1) : new OutputDestination(ROTERY_SIZE, po, name_1);
             circuit.add(ro);
             table[("\"" + r3[2] + "\"")] = ro;
+            if (isin) {
+                inputs.push(name_1);
+            }
         }
     }
-    return circuit;
+    //回路ができたのでレンダラ
+    var renderer = new CircuitRenderer(circuit);
+    return {
+        circuit: circuit,
+        inputs: inputs,
+        renderer: renderer
+    };
 }
+//回路を構成する文字列
+var code = "\n//\u5165\u51FA\u529B\nIN \"a1\": 40, 130\nIN \"a2\": 40, 260\nOUT \"b1\": 760, 130\nOUT \"b2\": 760, 260\n\nq1: 180, 390, H\nq2: 400, 390\nq3: 620, 390\n\na11: 180, 130\na12: 400, 130\na13: 620, 130\na21: 180, 260\na22: 400, 260\na23: 620, 260\n\n//\u7DDA\nq1.S -> q1.S: 450 ->\nq2.S -> q2.S: 450 ->\nq3.S -> q3.S: 450 ->\n\na11.S -> a21.N:\na12.S -> a22.N:\na13.S -> a23.N:\n\na21.N -> a11.S:\na22.N -> a12.S:\na23.N -> a13.S:\n\na21.S -> q1.N:\na22.S -> q2.N:\na23.S -> q3.N:\n\nq1.N -> a21.S:\nq2.N -> a22.S:\nq3.N -> a23.S:\n\nq1.W -> a11.N: 130 -> 80 ->\nq2.W -> a12.N: 350 -> 80 ->\nq3.W -> a13.N: 570 -> 80 ->\n\na11.N -> q1.E: 80 -> 230 ->\na12.N -> q2.E: 80 -> 450 ->\na13.N -> q3.E: 80 -> 670 ->\n\na11.E -> a12.W:\na12.E -> a13.W:\na21.E -> a22.W:\na22.E -> a23.W:\n\na11.W -> a12.E: 110 -> 50 -> 470 ->\n\na12.W -> a22.E: 300 -> 200 -> 500 -> \n\na13.W -> a21.E: 550 -> 180 -> 260 ->\n\na21.W -> a23.E: 110 -> 320 -> 700 ->\n\na22.W -> a11.E: 280 -> \n\na23.W -> a13.E: 540 -> 200 -> 700 ->\n\n\"a1\".E -> a11.W:\n\n\"a2\".E -> a21.W:\n\na13.E -> \"b1\".W:\na23.E -> \"b2\".W:\n";
+//ad hoc
+document.getElementById('code').value = code;
+loadCircuit();
 //1moji kar
 function charDir(char) {
     switch (char) {
@@ -432,4 +583,39 @@ function charDir(char) {
             return "north";
     }
     return null;
+}
+//loadCircuit
+function loadCircuit() {
+    //コードからあれする
+    var code = document.getElementById('code').value;
+    var _a = buildCircuit(code), circuit = _a.circuit, inputs = _a.inputs, renderer = _a.renderer;
+    var speed = document.getElementById('speed');
+    renderer.renderCircuit();
+    //
+    //入力ボタンを作る
+    var buttons = document.getElementById('buttons');
+    //全部消去
+    while (buttons.hasChildNodes()) {
+        buttons.removeChild(buttons.firstChild);
+    }
+    //ボタンを設置
+    var _loop_1 = function(name_2) {
+        var b = document.createElement("input");
+        b.type = "button";
+        b.value = name_2 + " \u3092\u5165\u529B";
+        buttons.appendChild(b);
+        b.addEventListener("click", function (e) {
+            renderer.input(name_2);
+            renderer.setSpeed(Number(speed.value));
+            renderer.start();
+        }, false);
+    };
+    for (var _i = 0, inputs_1 = inputs; _i < inputs_1.length; _i++) {
+        var name_2 = inputs_1[_i];
+        _loop_1(name_2);
+    }
+    //速度変更に対応
+    document.getElementById('speed').addEventListener('input', function (e) {
+        renderer.setSpeed(Number(speed.value));
+    }, false);
 }

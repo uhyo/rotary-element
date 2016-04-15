@@ -12,7 +12,7 @@ class Point{
 
 //ロータリー素子
 type RoteryState = "horizontal" | "vertical";
-type RoteryDirection = "east" | "south" | "west" | "north" | "none";
+type RoteryDirection = "east" | "south" | "west" | "north";
 
 interface DirectionMap<T>{
     east: T;
@@ -20,20 +20,7 @@ interface DirectionMap<T>{
     west: T;
     north: T;
 }
-type RoteryData = DirectionMap<boolean>;
 
-function dir(d:RoteryDirection):RoteryData{
-    const result:RoteryData = {
-        east: false,
-        south: false,
-        west: false,
-        north: false
-    };
-    if(d!=="none"){
-        result[d]=true;
-    }
-    return result;
-}
 
 //回路の構成要素
 abstract class CircuitElement{
@@ -47,10 +34,26 @@ abstract class BoxElement extends CircuitElement{
     //大きさ
     protected size:number;
 
+    //接続情報
+    protected input : DirectionMap<Path>;
+    protected output : DirectionMap<Path>;
+
     constructor(size:number, center:Point){
         super();
         this.size = size;
         this.center = center;
+        this.input = {
+            east: null,
+            south: null,
+            west: null,
+            north: null
+        };
+        this.output = {
+            east: null,
+            south: null,
+            west: null,
+            north: null
+        };
     }
     public getPoint(dir:RoteryDirection, inout:"in" | "out"):Point{
         //ポイントを教える
@@ -68,79 +71,81 @@ abstract class BoxElement extends CircuitElement{
         }
         return new Point(x, y);
     }
+    //接続情報
+    public setInput(d:RoteryDirection, c:CircuitElement):void{
+        this.input[d] = c;
+    }
+    public setOutput(d:RoteryDirection, c:CircuitElement):void{
+        this.output[d] = c;
+    }
+
+    //何かあれする
+    public getSomeOutput():Path{
+        for(let d of ["east","south","west","north"]){
+            if(this.output[d]!=null){
+                return this.output[d];
+            }
+        }
+        return null;
+    }
+    //これはどの方向から？
+    public getInputDir(path:Path):RoteryDirection{
+        for(let d of ["east","south","west","north"]){
+            if(this.input[d]===path){
+                return d as RoteryDirection;
+            }
+        }
+        return null;
+    }
+    //この方向のpathは？
+    public getOutputPath(dir:RoteryDirection):Path{
+        return this.output[dir];
+    }
 }
 
 //ロータリー素子
 class RoteryElement extends BoxElement{
     //state
     private state : RoteryState = "vertical";
-    //接続情報
-    private input : DirectionMap<CircuitElement>;
-    private output : DirectionMap<CircuitElement>;
 
-    constructor(size:number, center:Point){
-        super(size, center);
-        this.input = {
-            east: null,
-            south: null,
-            west: null,
-            north: null
-        };
-        this.output = {
-            east: null,
-            south: null,
-            west: null,
-            north: null
-        };
-    }
-    public handleToken(d:RoteryData):RoteryData{
-        this.validate(d);
-        const {east, south, west, north} = d;
+    public handleToken(d:RoteryDirection):RoteryDirection{
         if(this.state==="horizontal"){
             //横（東西）
-            if(east){
+            if(d==="east"){
                 //東から西へ
-                return dir("west");
+                return "west";
             }
-            if(west){
-                return dir("east");
+            if(d==="west"){
+                return "east";
             }
-            if(north){
+            if(d==="north"){
                 //北から
                 this.state = "vertical";
-                return dir("west");
+                return "west";
             }
-            if(south){
+            if(d==="south"){
                 //南から
                 this.state = "vertical";
-                return dir("east");
+                return "east";
             }
-            return dir("none");
+            return null;
         }else{
             //縦（南北）
-            if(south){
-                return dir("north");
+            if(d==="south"){
+                return "north";
             }
-            if(north){
-                return dir("south");
+            if(d==="north"){
+                return "south";
             }
-            if(east){
+            if(d==="east"){
                 this.state = "horizontal";
-                return dir("north");
+                return "north";
             }
-            if(west){
+            if(d==="west"){
                 this.state = "horizontal";
-                return dir("south");
+                return "south";
             }
-            return dir("none");
-        }
-    }
-    private validate(d:RoteryData):void{
-        //複数入力されていないか調べる
-        const {east, south, west, north} = d;
-        const trues = [east, south, west, north].filter(x=>x);
-        if(trues.length > 1){
-            throw new Error("RoteryData Validation Error");
+            return null;
         }
     }
     //rendering
@@ -175,16 +180,6 @@ class RoteryElement extends BoxElement{
     }
     public setState(state:RoteryState):void{
         this.state = state;
-    }
-    public setInput(input:DirectionMap<CircuitElement>):void{
-        for(let d in ["east","south","west","north"]){
-            this.input[d] = input[d];
-        }
-    }
-    public setOutput(output:DirectionMap<CircuitElement>):void{
-        for(let d in ["east","south","west","north"]){
-            this.output[d] = output[d];
-        }
     }
 
 }
@@ -226,6 +221,7 @@ class Path extends CircuitElement{
 
     //位置情報
     public path:Array<Point> = [];
+    public length:number = 0;
 
     //rendering
     public render(ctx):void{
@@ -263,14 +259,15 @@ class Path extends CircuitElement{
         }
     }
     
-    public setInput(input:CircuitElement):void{
+    public setConnection(input:CircuitElement, output:CircuitElement):void{
         this.input = input;
-    }
-    public setOutput(output:CircuitElement):void{
         this.output = output;
     }
     public setPath(path:Array<Point>):void{
         this.path=[...path];
+    }
+    public getOutput():CircuitElement{
+        return this.output;
     }
 }
 
@@ -278,15 +275,12 @@ class Path extends CircuitElement{
 //回路
 class Circuit{
     private elements : Array<CircuitElement> = [];
-    private canvas:HTMLCanvasElement;
-    constructor(c:HTMLCanvasElement){
-        this.canvas = c;
+    constructor(){
     }
     public add(e:CircuitElement):void{
         this.elements.push(e);
     }
-    public render():void{
-        const {canvas} = this;
+    public render(canvas:HTMLCanvasElement):void{
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -294,93 +288,167 @@ class Circuit{
             e.render(ctx);
         }
     }
+
+    //構成要素を得たい
+    public getIO(name:string):IO{
+        for(let e of this.elements){
+            if(e instanceof IO && e.name===name){
+                return e;
+            }
+        }
+        return null;
+    }
 }
 
-//回路を構成する文字列
-const code = `
-//入出力
-IN "a1": 40, 130
-IN "a2": 40, 260
-OUT "b1": 760, 130
-OUT "b2": 760, 260
+//回路をレンダリングするやつ
+class CircuitRenderer{
+    private speed:number;   // px/s
 
-q1: 180, 390, H
-q2: 400, 390
-q3: 620, 390
+    private ctx:CanvasRenderingContext2D;
 
-a11: 180, 130
-a12: 400, 130
-a13: 620, 130
-a21: 180, 260
-a22: 400, 260
-a23: 620, 260
+    //現在
+    private running:boolean = false;
+    private requestID:any;
+    //現在走行中のpath
+    private path:Path;
+    //現在走行中のseg
+    private segnum:number;
+    private segLength:number;
+    private segStart:Point;
+    private segDir:number;
+    private position:number;
 
-//線
-q1.S -> q1.S: 450 ->
-q2.S -> q2.S: 450 ->
-q3.S -> q3.S: 450 ->
+    private lastTime:number;
+    constructor(private circuit:Circuit){
+        this.speed = 300;
+        this.ctx = (document.getElementById('light') as HTMLCanvasElement).getContext('2d');
+    }
+    public renderCircuit(){
+        const canvas = document.getElementById('main') as HTMLCanvasElement;
+        this.circuit.render(canvas);
+    }
+    //入力
+    public input(name:string):void{
+        //開始boxを探す
+        const input = this.circuit.getIO(name);
+        if(!input)return;
 
-a11.S -> a21.N:
-a12.S -> a22.N:
-a13.S -> a23.N:
+        //これに接続するPathを探す
+        const path = input.getSomeOutput();
+        this.ridePath(path, 0);
+    }
+    public setSpeed(speed:number):void{
+        this.speed = speed;
+    }
 
-a21.N -> a11.S:
-a22.N -> a12.S:
-a23.N -> a13.S:
+    public stop():void{
+        if(this.running){
+            window.cancelAnimationFrame(this.requestID);
+            this.running=false;
+            this.requestID=null;
+        }
+    }
+    public start():void{
+        if(this.running){
+            this.stop();
+        }
+        this.running=true;
+        const handler = ()=>{
+            this.frame();
+            if(this.running===true){
+                this.requestID = window.requestAnimationFrame(handler);
+            }
+        };
+        this.lastTime = Date.now();
+        handler();
+    }
+    private frame():void{
+        //描画
+        const {ctx, path, segStart, segDir, position, lastTime}=this;
+        const now = Date.now();
+        const el = now - lastTime;  //経過時間
+        ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+        ctx.fillStyle="#ff0000";
+        if(path){
+            //円を描画
+            const x = segStart.x + Math.cos(segDir)*position;
+            const y = segStart.y + Math.sin(segDir)*position;
+            ctx.beginPath();
+            ctx.arc(x, y, 7, 0, Math.PI*2, false);
+            ctx.fill();
+            //進行
+            const pos = this.position += this.speed*el/1000;
+            if(pos >= this.segLength){
+                this.nextSeg();
+            }
+        }
+        this.lastTime = now;
+    }
+    //segが終わった
+    private nextSeg():void{
+        const {path}=this;
+        //debugger;
+        if(this.segnum < path.path.length-2){
+            this.ridePath(path, this.segnum+1);
+            return;
+        }else{
+            //このpathはもう終わりだから次のpathに
+            const o = path.getOutput();
+            if(o instanceof Path){
+                //まだpathが続く？
+                this.ridePath(o, 0);
+                return;
+            }else if(o instanceof RoteryElement){
+                //方向を取得
+                const d = o.getInputDir(path);
+                if(d!=null){
+                    //oに突っ込む
+                    const d2 = o.handleToken(d);
+                    //変わったかも
+                    this.renderCircuit();
+                    const path2 = o.getOutputPath(d2);
+                    if(path2!=null){
+                        //次のpathがみつかった
+                        this.ridePath(path2, 0);
+                        return;
+                    }
+                }
+            }
+        }
+        //だめだったら終了
+        this.stop();
+    }
+    //このpathに乗る
+    private ridePath(path:Path, segnum:number):void{
+        this.path = path;
+        this.segnum = segnum;
 
-a21.S -> q1.N:
-a22.S -> q2.N:
-a23.S -> q3.N:
-
-q1.N -> a21.S:
-q2.N -> a22.S:
-q3.N -> a23.S:
-
-q1.W -> a11.N: 130 -> 80 ->
-q2.W -> a12.N: 350 -> 80 ->
-q3.W -> a13.N: 570 -> 80 ->
-
-a11.N -> q1.E: 80 -> 230 ->
-a12.N -> q2.E: 80 -> 450 ->
-a13.N -> q3.E: 80 -> 670 ->
-
-a11.E -> a12.W:
-a12.E -> a13.W:
-a21.E -> a22.W:
-a22.E -> a23.W:
-
-a11.W -> a12.E: 110 -> 50 -> 470 ->
-
-a12.W -> a22.E: 300 -> 200 -> 500 -> 
-
-a13.W -> a21.E: 550 -> 180 -> 260 ->
-
-a21.W -> a23.E: 110 -> 320 -> 700 ->
-
-a22.W -> a11.E: 280 -> 
-
-a23.W -> a13.E: 540 -> 200 -> 700 ->
-
-"a1".E -> a11.W:
-
-"a2".E -> a21.W:
-
-a13.E -> "b1".W:
-a23.E -> "b2".W:
-`;
-
-//回路を作る
-const circuit = buildCircuit(code);
-circuit.render();
-
+        const ps = path.path;
+        const segS = ps[segnum];
+        const segE = ps[segnum+1];
+        if(segS==null || segE==null){
+            throw new Error("???");
+        }
+        const {x:sx, y:sy} = segS;
+        const {x:ex, y:ey} = segE;
+        //このsegの距離を計算
+        this.segLength = Math.sqrt(Math.pow(sx-ex,2) + Math.pow(sy-ey,2));
+        //角度も計算
+        this.segStart = segS;
+        this.segDir = Math.atan2(ey-sy, ex-sx);
+        this.position = 0;
+    }
+}
 
 //文字列から回路構成
-function buildCircuit(code:string):Circuit{
+function buildCircuit(code:string):{circuit: Circuit; inputs: Array<string>; renderer: CircuitRenderer}{
     const ROTERY_SIZE = 40;
-    const circuit = new Circuit(document.getElementById('main') as HTMLCanvasElement);
+    const circuit = new Circuit();
     const lines = code.split(/(?:\r\n|\r|\n)+/g).filter(x=>!!x);
 
     const table:{[id:string]:BoxElement} = {};
+
+    const inputs:Array<string> = [];
 
     for(let line of lines){
         const l = line.replace(/\s+/g,"");
@@ -479,21 +547,115 @@ function buildCircuit(code:string):Circuit{
             }
             //終点も追加
             path.push(new Point(e_p.x, e_p.y));
-            console.log([...path]);
             p.setPath(path);
             circuit.add(p);
+
+            //接続をあれする
+            p.setConnection(start, end);
+            start.setOutput(start_d, p);
+            end.setInput(end_d, p);
         }
         const r3 = l.match(/^(IN|OUT)"(\w+)":(\d+),(\d+)$/i);
         if(r3){
             //入出力
             const po=new Point(Number(r3[3]), Number(r3[4]));
-            const ro = /^in$/i.test(r3[1]) ? new InputSource(ROTERY_SIZE, po, r3[2]) : new OutputDestination(ROTERY_SIZE, po, r3[2]);
+            const isin = /^in$/i.test(r3[1]);
+            const name = r3[2];
+            const ro = isin ? new InputSource(ROTERY_SIZE, po, name) : new OutputDestination(ROTERY_SIZE, po, name);
             circuit.add(ro);
             table[`"${r3[2]}"`] = ro;
+            if(isin){
+                inputs.push(name);
+            }
         }
     }
-    return circuit;
+
+    //回路ができたのでレンダラ
+    const renderer = new CircuitRenderer(circuit);
+    return {
+        circuit,
+        inputs,
+        renderer
+    };
 }
+
+//回路を構成する文字列
+const code = `
+//入出力
+IN "a1": 40, 130
+IN "a2": 40, 260
+OUT "b1": 760, 130
+OUT "b2": 760, 260
+
+q1: 180, 390, H
+q2: 400, 390
+q3: 620, 390
+
+a11: 180, 130
+a12: 400, 130
+a13: 620, 130
+a21: 180, 260
+a22: 400, 260
+a23: 620, 260
+
+//線
+q1.S -> q1.S: 450 ->
+q2.S -> q2.S: 450 ->
+q3.S -> q3.S: 450 ->
+
+a11.S -> a21.N:
+a12.S -> a22.N:
+a13.S -> a23.N:
+
+a21.N -> a11.S:
+a22.N -> a12.S:
+a23.N -> a13.S:
+
+a21.S -> q1.N:
+a22.S -> q2.N:
+a23.S -> q3.N:
+
+q1.N -> a21.S:
+q2.N -> a22.S:
+q3.N -> a23.S:
+
+q1.W -> a11.N: 130 -> 80 ->
+q2.W -> a12.N: 350 -> 80 ->
+q3.W -> a13.N: 570 -> 80 ->
+
+a11.N -> q1.E: 80 -> 230 ->
+a12.N -> q2.E: 80 -> 450 ->
+a13.N -> q3.E: 80 -> 670 ->
+
+a11.E -> a12.W:
+a12.E -> a13.W:
+a21.E -> a22.W:
+a22.E -> a23.W:
+
+a11.W -> a12.E: 110 -> 50 -> 470 ->
+
+a12.W -> a22.E: 300 -> 200 -> 500 -> 
+
+a13.W -> a21.E: 550 -> 180 -> 260 ->
+
+a21.W -> a23.E: 110 -> 320 -> 700 ->
+
+a22.W -> a11.E: 280 -> 
+
+a23.W -> a13.E: 540 -> 200 -> 700 ->
+
+"a1".E -> a11.W:
+
+"a2".E -> a21.W:
+
+a13.E -> "b1".W:
+a23.E -> "b2".W:
+`;
+//ad hoc
+(document.getElementById('code') as HTMLInputElement).value=code;
+
+loadCircuit();
+
 
 //1moji kar
 function charDir(char:string):RoteryDirection{
@@ -512,4 +674,40 @@ function charDir(char:string):RoteryDirection{
             return "north";
     }
     return null;
+}
+
+//loadCircuit
+function loadCircuit():void{
+    //コードからあれする
+    const code = (document.getElementById('code') as HTMLTextAreaElement).value;
+    const {circuit, inputs, renderer} = buildCircuit(code);
+    
+    const speed = document.getElementById('speed') as HTMLInputElement;
+
+    renderer.renderCircuit();
+    
+    //
+
+    //入力ボタンを作る
+    const buttons = document.getElementById('buttons');
+    //全部消去
+    while(buttons.hasChildNodes()){
+        buttons.removeChild(buttons.firstChild);
+    }
+    //ボタンを設置
+    for(let name of inputs){
+        const b = document.createElement("input");
+        b.type="button";
+        b.value=`${name} を入力`;
+        buttons.appendChild(b);
+        b.addEventListener("click",(e)=>{
+            renderer.input(name);
+            renderer.setSpeed(Number(speed.value));
+            renderer.start();
+        },false);
+    }
+    //速度変更に対応
+    document.getElementById('speed').addEventListener('input',(e)=>{
+        renderer.setSpeed(Number(speed.value));
+    },false);
 }
