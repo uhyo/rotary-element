@@ -300,6 +300,17 @@ class Circuit{
     }
 }
 
+//ひとつのt−おくん
+interface Token{
+    //現在走行中のpath
+    path:Path;
+    //現在走行中のseg
+    segnum:number;
+    segLength:number;
+    segStart:Point;
+    segDir:number;
+    position:number;
+}
 //回路をレンダリングするやつ
 class CircuitRenderer{
     private speed:number;   // px/s
@@ -309,14 +320,7 @@ class CircuitRenderer{
     //現在
     private running:boolean = false;
     private requestID:any;
-    //現在走行中のpath
-    private path:Path;
-    //現在走行中のseg
-    private segnum:number;
-    private segLength:number;
-    private segStart:Point;
-    private segDir:number;
-    private position:number;
+    private tokens:Array<Token> = [];
 
     private lastTime:number;
     constructor(private circuit:Circuit){
@@ -335,7 +339,16 @@ class CircuitRenderer{
 
         //これに接続するPathを探す
         const path = input.getSomeOutput();
-        this.ridePath(path, 0);
+        const token:Token = {
+            path: null,
+            segnum: null,
+            segLength: null,
+            segStart: null,
+            segDir: null,
+            position: null
+        };
+        this.tokens.push(token);
+        this.ridePath(token, path, 0);
     }
     public setSpeed(speed:number):void{
         this.speed = speed;
@@ -364,12 +377,13 @@ class CircuitRenderer{
     }
     private frame():void{
         //描画
-        const {ctx, path, segStart, segDir, position, lastTime}=this;
+        const {ctx, tokens, lastTime}=this;
         const now = Date.now();
         const el = now - lastTime;  //経過時間
         ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
         ctx.fillStyle="#ff0000";
-        if(path){
+        for(let token of tokens){
+            const {path, segnum, segLength, segStart, segDir, position} = token;
             //円を描画
             const x = segStart.x + Math.cos(segDir)*position;
             const y = segStart.y + Math.sin(segDir)*position;
@@ -377,26 +391,26 @@ class CircuitRenderer{
             ctx.arc(x, y, 7, 0, Math.PI*2, false);
             ctx.fill();
             //進行
-            const pos = this.position += this.speed*el/1000;
-            if(pos >= this.segLength){
-                this.nextSeg();
+            const pos = token.position += this.speed*el/1000;
+            if(pos >= segLength){
+                this.nextSeg(token);
             }
         }
         this.lastTime = now;
     }
     //segが終わった
-    private nextSeg():void{
-        const {path}=this;
+    private nextSeg(token:Token):void{
+        const {path, segnum}=token;
         //debugger;
-        if(this.segnum < path.path.length-2){
-            this.ridePath(path, this.segnum+1);
+        if(segnum < path.path.length-2){
+            this.ridePath(token, path, segnum+1);
             return;
         }else{
             //このpathはもう終わりだから次のpathに
             const o = path.getOutput();
             if(o instanceof Path){
                 //まだpathが続く？
-                this.ridePath(o, 0);
+                this.ridePath(token, o, 0);
                 return;
             }else if(o instanceof RotaryElement){
                 //方向を取得
@@ -409,19 +423,19 @@ class CircuitRenderer{
                     const path2 = o.getOutputPath(d2);
                     if(path2!=null){
                         //次のpathがみつかった
-                        this.ridePath(path2, 0);
+                        this.ridePath(token, path2, 0);
                         return;
                     }
                 }
             }
         }
         //だめだったら終了
-        this.stop();
+        this.destroy(token);
     }
     //このpathに乗る
-    private ridePath(path:Path, segnum:number):void{
-        this.path = path;
-        this.segnum = segnum;
+    private ridePath(token:Token, path:Path, segnum:number):void{
+        token.path = path;
+        token.segnum = segnum;
 
         const ps = path.path;
         const segS = ps[segnum];
@@ -432,11 +446,18 @@ class CircuitRenderer{
         const {x:sx, y:sy} = segS;
         const {x:ex, y:ey} = segE;
         //このsegの距離を計算
-        this.segLength = Math.sqrt(Math.pow(sx-ex,2) + Math.pow(sy-ey,2));
+        token.segLength = Math.sqrt(Math.pow(sx-ex,2) + Math.pow(sy-ey,2));
         //角度も計算
-        this.segStart = segS;
-        this.segDir = Math.atan2(ey-sy, ex-sx);
-        this.position = 0;
+        token.segStart = segS;
+        token.segDir = Math.atan2(ey-sy, ex-sx);
+        token.position = 0;
+    }
+    private destroy(token:Token):void{
+        //トークンが終了
+        this.tokens = this.tokens.filter(t=>t!==token);
+        if(this.tokens.length===0){
+            this.stop();
+        }
     }
 }
 

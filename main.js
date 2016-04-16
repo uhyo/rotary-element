@@ -299,6 +299,7 @@ var CircuitRenderer = (function () {
         this.circuit = circuit;
         //現在
         this.running = false;
+        this.tokens = [];
         this.speed = 300;
         this.ctx = document.getElementById('light').getContext('2d');
     }
@@ -314,7 +315,16 @@ var CircuitRenderer = (function () {
             return;
         //これに接続するPathを探す
         var path = input.getSomeOutput();
-        this.ridePath(path, 0);
+        var token = {
+            path: null,
+            segnum: null,
+            segLength: null,
+            segStart: null,
+            segDir: null,
+            position: null
+        };
+        this.tokens.push(token);
+        this.ridePath(token, path, 0);
     };
     CircuitRenderer.prototype.setSpeed = function (speed) {
         this.speed = speed;
@@ -343,12 +353,14 @@ var CircuitRenderer = (function () {
     };
     CircuitRenderer.prototype.frame = function () {
         //描画
-        var _a = this, ctx = _a.ctx, path = _a.path, segStart = _a.segStart, segDir = _a.segDir, position = _a.position, lastTime = _a.lastTime;
+        var _a = this, ctx = _a.ctx, tokens = _a.tokens, lastTime = _a.lastTime;
         var now = Date.now();
         var el = now - lastTime; //経過時間
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.fillStyle = "#ff0000";
-        if (path) {
+        for (var _i = 0, tokens_1 = tokens; _i < tokens_1.length; _i++) {
+            var token = tokens_1[_i];
+            var path = token.path, segnum = token.segnum, segLength = token.segLength, segStart = token.segStart, segDir = token.segDir, position = token.position;
             //円を描画
             var x = segStart.x + Math.cos(segDir) * position;
             var y = segStart.y + Math.sin(segDir) * position;
@@ -356,19 +368,19 @@ var CircuitRenderer = (function () {
             ctx.arc(x, y, 7, 0, Math.PI * 2, false);
             ctx.fill();
             //進行
-            var pos = this.position += this.speed * el / 1000;
-            if (pos >= this.segLength) {
-                this.nextSeg();
+            var pos = token.position += this.speed * el / 1000;
+            if (pos >= segLength) {
+                this.nextSeg(token);
             }
         }
         this.lastTime = now;
     };
     //segが終わった
-    CircuitRenderer.prototype.nextSeg = function () {
-        var path = this.path;
+    CircuitRenderer.prototype.nextSeg = function (token) {
+        var path = token.path, segnum = token.segnum;
         //debugger;
-        if (this.segnum < path.path.length - 2) {
-            this.ridePath(path, this.segnum + 1);
+        if (segnum < path.path.length - 2) {
+            this.ridePath(token, path, segnum + 1);
             return;
         }
         else {
@@ -376,7 +388,7 @@ var CircuitRenderer = (function () {
             var o = path.getOutput();
             if (o instanceof Path) {
                 //まだpathが続く？
-                this.ridePath(o, 0);
+                this.ridePath(token, o, 0);
                 return;
             }
             else if (o instanceof RotaryElement) {
@@ -390,19 +402,19 @@ var CircuitRenderer = (function () {
                     var path2 = o.getOutputPath(d2);
                     if (path2 != null) {
                         //次のpathがみつかった
-                        this.ridePath(path2, 0);
+                        this.ridePath(token, path2, 0);
                         return;
                     }
                 }
             }
         }
         //だめだったら終了
-        this.stop();
+        this.destroy(token);
     };
     //このpathに乗る
-    CircuitRenderer.prototype.ridePath = function (path, segnum) {
-        this.path = path;
-        this.segnum = segnum;
+    CircuitRenderer.prototype.ridePath = function (token, path, segnum) {
+        token.path = path;
+        token.segnum = segnum;
         var ps = path.path;
         var segS = ps[segnum];
         var segE = ps[segnum + 1];
@@ -412,11 +424,18 @@ var CircuitRenderer = (function () {
         var sx = segS.x, sy = segS.y;
         var ex = segE.x, ey = segE.y;
         //このsegの距離を計算
-        this.segLength = Math.sqrt(Math.pow(sx - ex, 2) + Math.pow(sy - ey, 2));
+        token.segLength = Math.sqrt(Math.pow(sx - ex, 2) + Math.pow(sy - ey, 2));
         //角度も計算
-        this.segStart = segS;
-        this.segDir = Math.atan2(ey - sy, ex - sx);
-        this.position = 0;
+        token.segStart = segS;
+        token.segDir = Math.atan2(ey - sy, ex - sx);
+        token.position = 0;
+    };
+    CircuitRenderer.prototype.destroy = function (token) {
+        //トークンが終了
+        this.tokens = this.tokens.filter(function (t) { return t !== token; });
+        if (this.tokens.length === 0) {
+            this.stop();
+        }
     };
     return CircuitRenderer;
 }());
