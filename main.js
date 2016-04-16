@@ -460,7 +460,7 @@ function buildCircuit(code) {
             circuit.add(ro);
             table[r1[1]] = ro;
         }
-        var r2 = l.match(/^(\w+|"\w+")(\.[ESWN])?->(\w+|"\w+")(\.[ESWN])?:((?:\d+(?:,\d+)?)?(?:->(?:\d+(?:,\d+)?)?)*)$/i);
+        var r2 = l.match(/^(\w+|"[^\"]+")(\.[ESWN])?->(\w+|"[^\"]+")(\.[ESWN])?:((?:\*|\d+(?:,\d+)?)?(?:->(?:\*|\d+(?:,\d+)?)?)*)$/i);
         if (r2) {
             //パスを追加
             var p = new Path();
@@ -489,7 +489,7 @@ function buildCircuit(code) {
             //縦か横か
             var vertical = start_d === "south" || start_d === "north";
             for (var i = 0; i < l_1; i++) {
-                var xs = ps[i].split(",").filter(function (x) { return !!x; }).map(Number);
+                var xs = ps[i].split(",").filter(function (x) { return !!x && x !== "*"; }).map(Number);
                 var x = void 0, y = void 0;
                 if (xs.length === 0) {
                     if (i === l_1 - 1) {
@@ -582,6 +582,25 @@ function buildCircuit(code) {
 }
 //回路を構成する文字列
 var code = "\n//\u5165\u51FA\u529B\nIN \"a1\": 40, 130\nIN \"a2\": 40, 260\nOUT \"b1\": 760, 130\nOUT \"b2\": 760, 260\n\nq1: 180, 390, H\nq2: 400, 390\nq3: 620, 390\n\na11: 180, 130\na12: 400, 130\na13: 620, 130\na21: 180, 260\na22: 400, 260\na23: 620, 260\n\n//\u7DDA\nq1.S -> q1.S: 450 ->\nq2.S -> q2.S: 450 ->\nq3.S -> q3.S: 450 ->\n\na11.S -> a21.N:\na12.S -> a22.N:\na13.S -> a23.N:\n\na21.N -> a11.S:\na22.N -> a12.S:\na23.N -> a13.S:\n\na21.S -> q1.N:\na22.S -> q2.N:\na23.S -> q3.N:\n\nq1.N -> a21.S:\nq2.N -> a22.S:\nq3.N -> a23.S:\n\nq1.W -> a11.N: 130 -> 80 ->\nq2.W -> a12.N: 350 -> 80 ->\nq3.W -> a13.N: 570 -> 80 ->\n\na11.N -> q1.E: 80 -> 230 ->\na12.N -> q2.E: 80 -> 450 ->\na13.N -> q3.E: 80 -> 670 ->\n\na11.E -> a12.W:\na12.E -> a13.W:\na21.E -> a22.W:\na22.E -> a23.W:\n\na11.W -> a12.E: 110 -> 50 -> 470 ->\n\na12.W -> a22.E: 300 -> 200 -> 500 -> \n\na13.W -> a21.E: 550 -> 180 -> 260 ->\n\na21.W -> a23.E: 110 -> 320 -> 700 ->\n\na22.W -> a11.E: 280 -> \n\na23.W -> a13.E: 540 -> 200 -> 700 ->\n\n\"a1\".E -> a11.W:\n\n\"a2\".E -> a21.W:\n\na13.E -> \"b1\".W:\na23.E -> \"b2\".W:\n";
+/*
+const code = `
+IN "0": 40, 130
+IN "1": 40, 260
+
+OUT "OUT0": 360, 130
+OUT "OUT1": 360, 260
+
+q: 200, 195
+
+"0".E -> q.N: *
+"1".E -> q.W: 150 -> *
+q.S -> "OUT0".W: 230 -> 260 -> *
+q.N -> "OUT1".W: 160 -> 280 -> *
+
+q.E -> q.S: 240 -> 250 -> *
+q.W -> q.E: 150 -> 110 -> 240 -> *
+`;
+*/
 //ad hoc
 document.getElementById('code').value = code;
 loadCircuit();

@@ -484,7 +484,7 @@ function buildCircuit(code:string):{circuit: Circuit; inputs: Array<string>; ren
             circuit.add(ro);
             table[r1[1]] = ro;
         }
-        const r2 = l.match(/^(\w+|"\w+")(\.[ESWN])?->(\w+|"\w+")(\.[ESWN])?:((?:\d+(?:,\d+)?)?(?:->(?:\d+(?:,\d+)?)?)*)$/i);
+        const r2 = l.match(/^(\w+|"[^\"]+")(\.[ESWN])?->(\w+|"[^\"]+")(\.[ESWN])?:((?:\*|\d+(?:,\d+)?)?(?:->(?:\*|\d+(?:,\d+)?)?)*)$/i);
         if(r2){
             //パスを追加
             const p = new Path();
@@ -514,7 +514,7 @@ function buildCircuit(code:string):{circuit: Circuit; inputs: Array<string>; ren
             //縦か横か
             let vertical = start_d==="south" || start_d==="north";
             for(let i=0; i<l; i++){
-                const xs = ps[i].split(",").filter(x=>!!x).map(Number);
+                const xs = ps[i].split(",").filter(x=>!!x && x!=="*").map(Number);
                 let x,y;
                 if(xs.length===0){
                     if(i===l-1){
@@ -672,6 +672,25 @@ a23.W -> a13.E: 540 -> 200 -> 700 ->
 a13.E -> "b1".W:
 a23.E -> "b2".W:
 `;
+/*
+const code = `
+IN "0": 40, 130
+IN "1": 40, 260 
+
+OUT "OUT0": 360, 130
+OUT "OUT1": 360, 260
+
+q: 200, 195
+
+"0".E -> q.N: *
+"1".E -> q.W: 150 -> *
+q.S -> "OUT0".W: 230 -> 260 -> *
+q.N -> "OUT1".W: 160 -> 280 -> *
+
+q.E -> q.S: 240 -> 250 -> *
+q.W -> q.E: 150 -> 110 -> 240 -> *
+`;
+*/
 //ad hoc
 (document.getElementById('code') as HTMLInputElement).value=code;
 
